@@ -1,0 +1,33 @@
+name: DevSecOps Security Pipeline
+
+on:
+  push:
+    branches: [ "main" ] # Surveille les push directs sur la branche principale
+  pull_request:
+    branches: [ "main" ] # Sécurise le code entrant avant d'accepter une fusion
+  schedule:
+    - cron: '0 2 * * *' # Exécute un scan quotidien à 2h00 du matin (UTC)
+
+jobs:
+  secrets-scan:
+    name: '🔐 Secrets Scanning'
+    runs-on: ubuntu-latest # Utilise le runner hébergé par défaut et gratuit de GitHub
+    steps:
+      - uses: actions/checkout@v4 # Action officielle pour récupérer le code source
+        with:
+          fetch-depth: 0 # Indispensable : récupère tout l'historique au lieu du dernier commit seulement, sinon Gitleaks ne verrait pas les secrets cachés dans les anciens commits.
+
+  dependency-scan:
+    name: '📦 Dependency Scanning'
+    runs-on: ubuntu-latest
+    needs: [ secrets-scan ] # Attend que le scan de secrets passe (Fail Fast : on arrête tout si un secret fuite)
+
+  sast:
+    name: '🔍 SAST Analysis'
+    runs-on: ubuntu-latest
+    needs: [ secrets-scan ] # S'exécute en parallèle du dependency-scan pour gagner du temps
+
+  container-scan:
+    name: '🐳 Container Security'
+    runs-on: ubuntu-latest
+    needs: [ dependency-scan, sast ] # Attend que l'analyse du code (SAST) et des dépendances (SCA) soient validées avant d'analyser l'image Docker finale
